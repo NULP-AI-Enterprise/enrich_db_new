@@ -14,7 +14,7 @@ import logging
 import re
 
 import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential, reraise
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from config import settings
 
