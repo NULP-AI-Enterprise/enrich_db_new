@@ -36,7 +36,7 @@ no commentary, no code fences — that conforms EXACTLY to this schema:
 
 {
   "description":  "<3-4 sentences in English. State: what the outlet covers, who founded/runs it if known, its geographic focus, and its editorial angle>",
-  "category":     "<exactly one of: Новини|Бізнес|Технології|Спорт|Мода|Агро|Відео|Розваги|Наука|Політика>",
+  "category":     "<exactly one of: News|Business|Technology|Sports|Fashion|Agriculture|Video|Entertainment|Science|Politics>",
   "tags":         ["<6-8 precise English keyword tags: topic beats, geography, format>"],
   "audience": {
     "age_range":  "<realistic age range, e.g. 18-35 or 30-55>",
@@ -61,8 +61,8 @@ Rules:
 
 # Allowed values for validation
 _VALID_CATEGORIES = {
-    "Новини", "Бізнес", "Технології", "Спорт", "Мода",
-    "Агро", "Відео", "Розваги", "Наука", "Політика",
+    "News", "Business", "Technology", "Sports", "Fashion",
+    "Agriculture", "Video", "Entertainment", "Science", "Politics",
 }
 _VALID_TIERS = {"national", "regional", "local", "niche"}
 
@@ -72,7 +72,7 @@ _VALID_TIERS = {"national", "regional", "local", "niche"}
 def _validate(data: dict, title: str) -> dict:
     """Clamp and coerce LLM output to exactly the required schema."""
     if data.get("category") not in _VALID_CATEGORIES:
-        data["category"] = "Новини"
+        data["category"] = "News"
     if data.get("metrics", {}).get("reach_tier") not in _VALID_TIERS:
         data.setdefault("metrics", {})["reach_tier"] = "regional"
     data.setdefault("metrics", {})["data_source"] = "llm_estimate"

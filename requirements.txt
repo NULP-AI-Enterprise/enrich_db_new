@@ -19,6 +19,9 @@ asyncpg==0.29.0
 # ── Retry logic ───────────────────────────────────────────────────────────────
 tenacity==8.3.0
 
+# ── Env file loading ──────────────────────────────────────────────────────────
+python-dotenv==1.0.1
+
 # ── OpenAI (optional – only needed when USE_MOCK_LLM=false) ──────────────────
 openai==1.30.1
 

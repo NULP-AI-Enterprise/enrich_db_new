@@ -10,3 +10,4 @@ venv/
 celerybeat-schedule
 celerybeat.pid
 *.log
+k8s/secret.yaml

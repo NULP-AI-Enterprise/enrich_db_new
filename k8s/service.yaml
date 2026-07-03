@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: advert-enrich
+  namespace: advert-enrich
+  labels:
+    app: advert-enrich-api
+spec:
+  type: ClusterIP
+  selector:
+    app: advert-enrich-api
+  ports:
+    - port: 8001
+      targetPort: 8001
+      protocol: TCP

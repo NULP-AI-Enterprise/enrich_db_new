@@ -1,0 +1,142 @@
+# ── API (FastAPI control plane) ───────────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: advert-enrich-api
+  namespace: advert-enrich
+  labels:
+    app: advert-enrich-api
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: advert-enrich-api
+  template:
+    metadata:
+      labels:
+        app: advert-enrich-api
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: advert-enrich-api
+          image: ghcr.io/nulp-ai-enterprise/advert-enrich:latest
+          command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8001"]
+          ports:
+            - containerPort: 8001
+          envFrom:
+            - secretRef:
+                name: advert-enrich-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+---
+# ── Celery worker – enrichment queue (search + scrape + LLM) ─────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: advert-enrich-worker
+  namespace: advert-enrich
+  labels:
+    app: advert-enrich-worker
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: advert-enrich-worker
+  template:
+    metadata:
+      labels:
+        app: advert-enrich-worker
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: advert-enrich-worker
+          image: ghcr.io/nulp-ai-enterprise/advert-enrich:latest
+          command:
+            - celery
+            - -A
+            - celery_app
+            - worker
+            - --queues=enrichment
+            - --concurrency=5
+            - --loglevel=info
+            - --hostname=enrich@%h
+          envFrom:
+            - secretRef:
+                name: advert-enrich-secret
+          resources:
+            requests:
+              cpu: 200m
+              memory: 512Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+---
+# ── Celery worker – embeddings queue (single instance, holds Redis lock) ──────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: advert-enrich-embed
+  namespace: advert-enrich
+  labels:
+    app: advert-enrich-embed
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: advert-enrich-embed
+  template:
+    metadata:
+      labels:
+        app: advert-enrich-embed
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: advert-enrich-embed
+          image: ghcr.io/nulp-ai-enterprise/advert-enrich:latest
+          command:
+            - celery
+            - -A
+            - celery_app
+            - worker
+            - --queues=embeddings
+            - --concurrency=2
+            - --loglevel=info
+            - --hostname=embed@%h
+          envFrom:
+            - secretRef:
+                name: advert-enrich-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
