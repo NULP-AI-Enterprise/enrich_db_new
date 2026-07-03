@@ -29,6 +29,11 @@ spec:
           envFrom:
             - secretRef:
                 name: advert-enrich-secret
+          env:
+            - name: CELERY_BROKER_URL
+              value: "redis://advert-redis.advert-back.svc.cluster.local:6379/0"
+            - name: CELERY_RESULT_BACKEND
+              value: "redis://advert-redis.advert-back.svc.cluster.local:6379/1"
           resources:
             requests:
               cpu: 100m
@@ -88,6 +93,11 @@ spec:
           envFrom:
             - secretRef:
                 name: advert-enrich-secret
+          env:
+            - name: CELERY_BROKER_URL
+              value: "redis://advert-redis.advert-back.svc.cluster.local:6379/0"
+            - name: CELERY_RESULT_BACKEND
+              value: "redis://advert-redis.advert-back.svc.cluster.local:6379/1"
           resources:
             requests:
               cpu: 200m
@@ -133,6 +143,11 @@ spec:
           envFrom:
             - secretRef:
                 name: advert-enrich-secret
+          env:
+            - name: CELERY_BROKER_URL
+              value: "redis://advert-redis.advert-back.svc.cluster.local:6379/0"
+            - name: CELERY_RESULT_BACKEND
+              value: "redis://advert-redis.advert-back.svc.cluster.local:6379/1"
           resources:
             requests:
               cpu: 100m
