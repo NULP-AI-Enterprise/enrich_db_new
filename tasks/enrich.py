@@ -17,8 +17,8 @@ from celery import Task
 from celery_app import celery_app
 from config import settings
 from db import update_media_item
-from services.search import find_domain
-from services.scraper import scrape_outlet
+from services.discovery import discover
+from services.scraper import scrape
 from services.llm import structure_media_item
 
 import redis as _redis_sync
@@ -67,12 +67,17 @@ def enrich_item(self: Task, item_id: str, title: str) -> dict:
 # ─── Async pipeline ───────────────────────────────────────────────────────────
 
 async def _pipeline(item_id: str, title: str) -> dict:
-    # ── Step 1: find domain ──────────────────────────────────────────────────
-    url = await find_domain(title)
-    logger.info("[%s] domain=%s", title, url or "not found")
+    # ── Step 1: multi-source discovery (Wikidata / Wikipedia / slug probe) ───
+    discovery = await discover(title)
+    logger.info("[%s] domain=%s source=%s", title, discovery.url or "not found", discovery.source)
 
-    # ── Step 2: scrape ───────────────────────────────────────────────────────
-    context_text = await scrape_outlet(title, url)
+    # ── Step 2: scrape / extract context ────────────────────────────────────
+    context_text = await scrape(
+        name=title,
+        url=discovery.url,
+        wikipedia_extract=discovery.wikipedia_extract,
+        source=discovery.source,
+    )
     logger.debug("[%s] context_text length=%d", title, len(context_text))
 
     # ── Step 3: LLM structuring ──────────────────────────────────────────────

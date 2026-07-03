@@ -18,8 +18,8 @@ class Settings(BaseSettings):
     openai_embedding_model: str = "text-embedding-3-small"
 
     # ── Pipeline behaviour ────────────────────────────────────────────────────
-    use_mock_llm: bool = True       # set False in prod
-    use_mock_search: bool = True    # set False in prod
+    use_mock_llm: bool = False
+    use_mock_search: bool = False
     batch_embed_size: int = 100     # items per embedding API call
     batch_embed_interval: int = 30  # Celery beat fallback interval (seconds)
     scrape_timeout: float = 5.0
