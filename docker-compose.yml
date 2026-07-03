@@ -1,0 +1,68 @@
+version: "3.9"
+
+# Shared build context
+x-base: &base
+  build: .
+  env_file: .env
+  restart: unless-stopped
+  depends_on:
+    redis:
+      condition: service_healthy
+
+services:
+
+  # ── Infrastructure ──────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ── Enrichment workers (search + scrape + LLM) ──────────────────────────────
+  # Scale with: docker compose up --scale worker-enrich=4
+  worker-enrich:
+    <<: *base
+    command: >
+      celery -A celery_app worker
+        --queues=enrichment
+        --concurrency=10
+        --loglevel=info
+        --hostname=enrich@%h
+
+  # ── Embedding batch worker (single instance, holds the Redis lock) ──────────
+  worker-embed:
+    <<: *base
+    command: >
+      celery -A celery_app worker
+        --queues=embeddings
+        --concurrency=2
+        --loglevel=info
+        --hostname=embed@%h
+
+  # ── Celery Beat scheduler ────────────────────────────────────────────────────
+  beat:
+    <<: *base
+    command: celery -A celery_app beat --loglevel=info
+    volumes:
+      - beat_data:/app/celerybeat-schedule
+
+  # ── FastAPI control plane ────────────────────────────────────────────────────
+  api:
+    <<: *base
+    command: uvicorn api:app --host 0.0.0.0 --port 8001
+    ports:
+      - "8001:8001"
+
+  # ── Flower monitoring dashboard (optional) ───────────────────────────────────
+  flower:
+    <<: *base
+    command: celery -A celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+
+volumes:
+  beat_data:

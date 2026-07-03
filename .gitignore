@@ -1,0 +1,12 @@
+.env
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+.venv/
+venv/
+.idea/
+.vscode/
+celerybeat-schedule
+celerybeat.pid
+*.log
