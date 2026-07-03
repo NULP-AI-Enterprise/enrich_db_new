@@ -29,29 +29,35 @@ logger = logging.getLogger(__name__)
 # ─── Schema contract ──────────────────────────────────────────────────────────
 
 _SYSTEM_PROMPT = """\
-You are a senior media classification analyst.
+You are a senior media analyst specialising in Ukrainian and Eastern European media.
 
-Given information about a news/media outlet return ONLY valid JSON — no markdown,
-no commentary, no code fences — that conforms exactly to this schema:
+Given information about a news/media outlet, return ONLY valid JSON — no markdown,
+no commentary, no code fences — that conforms EXACTLY to this schema:
 
 {
-  "description":  "<2-3 sentences in English describing the outlet and its focus>",
+  "description":  "<3-4 sentences in English. State: what the outlet covers, who founded/runs it if known, its geographic focus, and its editorial angle>",
   "category":     "<exactly one of: Новини|Бізнес|Технології|Спорт|Мода|Агро|Відео|Розваги|Наука|Політика>",
-  "tags":         ["<up to 8 short keyword tags in English>"],
+  "tags":         ["<6-8 precise English keyword tags: topic beats, geography, format>"],
   "audience": {
-    "age_range":  "<e.g. 25-45>",
-    "interests":  ["<interest1>", "<interest2>"],
+    "age_range":  "<realistic age range, e.g. 18-35 or 30-55>",
+    "interests":  ["<3-5 specific audience interests>"],
     "demographics": {
-      "primary_language": "<ISO-639-1 code, e.g. uk>",
-      "geo":              "<country or region>",
-      "gender_split":     "<e.g. 55M/45F>"
+      "primary_language": "<ISO-639-1, e.g. uk / en / ru>",
+      "geo":              "<specific city, region or country — NOT just 'Ukraine' if regional>",
+      "gender_split":     "<realistic estimate, e.g. 60M/40F>"
     }
   },
   "metrics": {
-    "reach_tier":  "<exactly one of: national|regional|local|niche>",
+    "reach_tier":  "<national=country-wide audience | regional=one oblast/city | local=neighbourhood/district | niche=specialist topic>",
     "data_source": "llm_estimate"
   }
-}"""
+}
+
+Rules:
+- Base ALL facts on the provided context. Do NOT invent founding years, owners, or URLs.
+- If the outlet is clearly regional (covers one city/oblast), set reach_tier="regional" or "local".
+- tags must be specific (e.g. "Kharkiv", "investigative journalism") not generic ("news", "media").
+- description must reflect the actual editorial focus visible in the context."""
 
 # Allowed values for validation
 _VALID_CATEGORIES = {

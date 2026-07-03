@@ -27,9 +27,17 @@ class Settings(BaseSettings):
     producer_page_size: int = 500   # rows per DB page when dispatching
     task_stagger_per: int = 50      # add 1s countdown per N tasks (thundering herd)
 
+    # ── Optional external search APIs ────────────────────────────────────────
+    # Google Custom Search  (https://programmablesearchengine.google.com)
+    google_api_key: str = ""
+    google_cx: str = ""          # Custom Search Engine ID
+    # SerpAPI  (https://serpapi.com) – simpler alternative to Google CSE
+    serp_api_key: str = ""
+
     # ── Rate-limit courtesies ─────────────────────────────────────────────────
     llm_rate_limit_delay: float = 0.5   # seconds between LLM calls per worker
     scrape_rate_limit_delay: float = 0.2
+    concurrency: int = 4                 # parallel items in run_production.py
 
 
 settings = Settings()
