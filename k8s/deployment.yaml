@@ -22,7 +22,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: advert-enrich-api
-          image: ghcr.io/nulp-ai-enterprise/advert-enrich:sha-f12cdc7
+          image: ghcr.io/nulp-ai-enterprise/advert-enrich:sha-cde5490
           command: ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8001"]
           ports:
             - containerPort: 8001
@@ -80,7 +80,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: advert-enrich-worker
-          image: ghcr.io/nulp-ai-enterprise/advert-enrich:sha-f12cdc7
+          image: ghcr.io/nulp-ai-enterprise/advert-enrich:sha-cde5490
           command:
             - celery
             - -A
@@ -130,7 +130,7 @@ spec:
         - name: ghcr-secret
       containers:
         - name: advert-enrich-embed
-          image: ghcr.io/nulp-ai-enterprise/advert-enrich:sha-f12cdc7
+          image: ghcr.io/nulp-ai-enterprise/advert-enrich:sha-cde5490
           command:
             - celery
             - -A
