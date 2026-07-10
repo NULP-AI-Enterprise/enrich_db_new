@@ -59,12 +59,13 @@ async def fetch_unenriched(limit: int = 500, offset: int = 0) -> list[dict]:
 
 
 async def fetch_items_for_embedding(item_ids: list[str]) -> list[dict]:
-    """Return title/description/category/tags for building embedding text."""
+    """Return fields needed to build embedding text, including new structured columns."""
     conn = await _connect()
     try:
         rows = await conn.fetch(
             """
-            SELECT id::text, title, description, category, tags
+            SELECT id::text, title, description, category, tags,
+                   format_type, language
             FROM media_items
             WHERE id = ANY($1::uuid[])
               AND description IS NOT NULL
@@ -86,7 +87,7 @@ async def update_media_item(
     audience: dict[str, Any],
     metrics: dict[str, Any],
 ) -> None:
-    """Update all standard (non-vector) fields via ORM-compatible asyncpg."""
+    """Update LLM-generated fields (non-vector). Structured CSV columns are untouched."""
     conn = await _connect()
     try:
         await conn.execute(
@@ -114,11 +115,7 @@ async def update_media_item(
 async def update_embedding(item_id: str, embedding: list[float]) -> None:
     """
     Raw native SQL update for the vector column.
-
-    The embedding field is declared @Transient in the Spring/Hibernate entity
-    (see db-schema.json notes) meaning Hibernate never touches it.  All writes
-    must therefore go through a native query — exactly what we do here.
-
+    The embedding field is @Transient in Hibernate — all writes must use native SQL.
     pgvector expects the string literal '[0.123, 0.456, ...]'.
     """
     conn = await _connect()
