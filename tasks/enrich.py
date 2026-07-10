@@ -33,6 +33,41 @@ def _redis():
     return _redis_sync.from_url(settings.redis_url, decode_responses=True)
 
 
+# ─── Event loop helper ────────────────────────────────────────────────────────
+
+def _run_async(coro):
+    """
+    Run an async coroutine in a Celery fork worker.
+
+    asyncio.run() closes the event loop after the coroutine completes, but
+    httpx (and anyio) create background cleanup tasks that try to finalise
+    on the now-closed loop, producing `RuntimeError('Event loop is closed')`.
+
+    This helper cancels all pending tasks before closing the loop so those
+    finalisation tasks are given a chance to exit cleanly.
+    """
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        try:
+            # Cancel every lingering task (httpx connection-pool teardown etc.)
+            pending = asyncio.all_tasks(loop)
+            if pending:
+                for task in pending:
+                    task.cancel()
+                loop.run_until_complete(
+                    asyncio.gather(*pending, return_exceptions=True)
+                )
+            loop.run_until_complete(loop.shutdown_asyncgens())
+        except Exception:
+            pass
+        finally:
+            asyncio.set_event_loop(None)
+            loop.close()
+
+
 # ─── Main task ────────────────────────────────────────────────────────────────
 
 @celery_app.task(
@@ -54,7 +89,7 @@ def enrich_item(self: Task, item_id: str, title: str) -> dict:
     title   : outlet name (the only field we start with)
     """
     try:
-        return asyncio.run(_pipeline(item_id, title))
+        return _run_async(_pipeline(item_id, title))
     except Exception as exc:
         countdown = 10 * (2 ** self.request.retries)
         logger.warning(
@@ -82,8 +117,10 @@ async def _pipeline(item_id: str, title: str) -> dict:
 
     # ── Step 3: LLM structuring ──────────────────────────────────────────────
     structured = await structure_media_item(title, context_text)
-    logger.info("[%s] category=%s tier=%s", title,
-                structured["category"], structured["metrics"]["reach_tier"])
+    logger.info("[%s] category=%s coverage=%s",
+                title,
+                structured.get("category"),
+                structured.get("metrics", {}).get("geographic_coverage", []))
 
     # ── Step 4: persist standard fields ─────────────────────────────────────
     await update_media_item(
@@ -92,7 +129,7 @@ async def _pipeline(item_id: str, title: str) -> dict:
         category=structured["category"],
         tags=structured.get("tags", []),
         audience=structured.get("audience", {}),
-        metrics=structured.get("metrics", {"reach_tier": "unknown", "data_source": "llm_estimate"}),
+        metrics=structured.get("metrics", {}),
     )
     logger.info("[%s] saved to DB", title)
 
@@ -102,8 +139,7 @@ async def _pipeline(item_id: str, title: str) -> dict:
     return {
         "item_id":  item_id,
         "title":    title,
-        "category": structured["category"],
-        "tier":     structured["metrics"]["reach_tier"],
+        "category": structured.get("category"),
         "status":   "enriched",
     }
 

@@ -38,8 +38,9 @@ async def enrich_one(item: dict) -> dict:
     logger.info("  context   : %d chars", len(context))
 
     structured = await structure_media_item(title, context)
-    logger.info("  category  : %s  |  tier: %s",
-                structured["category"], structured["metrics"]["reach_tier"])
+    logger.info("  category  : %s  |  coverage: %s",
+                structured["category"],
+                structured.get("metrics", {}).get("geographic_coverage", []))
     logger.info("  tags      : %s", ", ".join(structured.get("tags", [])))
 
     await update_media_item(
@@ -92,13 +93,14 @@ async def main() -> None:
     # ── Final summary ────────────────────────────────────────────────────────
     logger.info("\n%s", "=" * 60)
     logger.info("DONE — %d items enriched + %d embeddings stored", len(enriched), embed_ok)
-    logger.info("%-30s  %-16s  %s", "Title", "Category", "Tier")
+    logger.info("%-30s  %-16s  %s", "Title", "Category", "Coverage")
     logger.info("-" * 60)
     for r in enriched:
+        coverage = r.get("metrics", {}).get("geographic_coverage", [])
         logger.info("%-30s  %-16s  %s",
                     r["title"][:30],
                     r.get("category", "?"),
-                    r.get("metrics", {}).get("reach_tier", "?"))
+                    ", ".join(coverage) if coverage else "?")
 
 
 if __name__ == "__main__":

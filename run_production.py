@@ -129,7 +129,7 @@ async def _pipeline(item: dict, result: ItemResult) -> None:
     # ── Stage 3: LLM structuring ─────────────────────────────────────────────
     structured = await structure_media_item(title, context)
     result.category = structured["category"]
-    result.tier     = structured["metrics"]["reach_tier"]
+    result.tier     = ", ".join(structured.get("metrics", {}).get("geographic_coverage", []) or ["?"])
     result.extra    = discovery.extra  # founding_year etc.
 
     # Merge Wikidata extras into metrics if available

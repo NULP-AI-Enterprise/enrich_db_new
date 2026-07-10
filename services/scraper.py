@@ -11,6 +11,7 @@ Returns a plain-text context blob for the LLM (≤ 6000 chars).
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -131,6 +132,49 @@ async def _get(client: httpx.AsyncClient, url: str) -> str | None:
     return None
 
 
+# ─── Parallel slug probe ──────────────────────────────────────────────────────
+
+async def _first_hit(client: httpx.AsyncClient, base_url: str, slugs: list[str]) -> str | None:
+    """
+    Probe all slugs in parallel and return the body of the first successful one.
+    Much faster than sequential probing when most slugs return 404.
+    """
+    async def _try(slug: str) -> str | None:
+        return await _get(client, base_url.rstrip("/") + slug)
+
+    tasks = [asyncio.create_task(_try(s)) for s in slugs]
+    result: str | None = None
+    try:
+        done, pending_tasks = await asyncio.wait(
+            tasks, return_when=asyncio.FIRST_COMPLETED
+        )
+        # Check completed tasks for a successful result
+        for fut in done:
+            val = fut.result()
+            if val:
+                result = val
+                break
+
+        # If the first batch found nothing, wait for the rest
+        if result is None and pending_tasks:
+            more_done, _ = await asyncio.wait(pending_tasks)
+            for fut in more_done:
+                try:
+                    val = fut.result()
+                    if val and result is None:
+                        result = val
+                except Exception:
+                    pass
+    finally:
+        # Cancel any tasks that haven't completed yet
+        for t in tasks:
+            if not t.done():
+                t.cancel()
+        # Await cancellation silently
+        await asyncio.gather(*[t for t in tasks if t.cancelled()], return_exceptions=True)
+    return result
+
+
 # ─── Scrape real website ──────────────────────────────────────────────────────
 
 async def _scrape_site(client: httpx.AsyncClient, base_url: str) -> dict:
@@ -155,22 +199,21 @@ async def _scrape_site(client: httpx.AsyncClient, base_url: str) -> dict:
     signals.setdefault("page_title", title_tag.get_text(strip=True) if title_tag else "")
     signals.setdefault("body_text",  _body_text(soup))
 
-    # /about page – richer description
-    for slug in _ABOUT_SLUGS:
-        about_html = await _get(client, base_url.rstrip("/") + slug)
-        if about_html:
-            a_soup = BeautifulSoup(about_html, "lxml")
-            about_text = _body_text(a_soup)
-            if len(about_text) > len(signals.get("body_text", "")):
-                signals["about_text"] = about_text[:_MAX_BODY]
-            break
+    # /about page + RSS feed — probe in parallel
+    about_html, rss_text = await asyncio.gather(
+        _first_hit(client, base_url, _ABOUT_SLUGS),
+        _first_hit(client, base_url, _RSS_SLUGS),
+        return_exceptions=True,
+    )
 
-    # RSS feed – category signals
-    for slug in _RSS_SLUGS:
-        rss = await _get(client, base_url.rstrip("/") + slug)
-        if rss and "<?xml" in rss[:200]:
-            signals["rss_categories"] = _rss_categories(rss)
-            break
+    if isinstance(about_html, str) and about_html:
+        a_soup = BeautifulSoup(about_html, "lxml")
+        about_text = _body_text(a_soup)
+        if len(about_text) > len(signals.get("body_text", "")):
+            signals["about_text"] = about_text[:_MAX_BODY]
+
+    if isinstance(rss_text, str) and rss_text and "<?xml" in rss_text[:300]:
+        signals["rss_categories"] = _rss_categories(rss_text)
 
     return signals
 
@@ -179,16 +222,23 @@ def _flatten_site(signals: dict, name: str) -> str:
     parts = [f"Outlet name: {name}"]
     if signals.get("name") and signals["name"].lower() != name.lower():
         parts.append(f"Official name: {signals['name']}")
-    if signals.get("og_desc") or signals.get("meta_desc") or signals.get("description"):
-        parts.append("Description: " + (
-            signals.get("description") or signals.get("og_desc") or signals.get("meta_desc")
-        ))
+
+    desc = (
+        signals.get("description")
+        or signals.get("og_desc")
+        or signals.get("meta_desc")
+    )
+    if desc:
+        parts.append(f"Description: {desc}")
+
     if signals.get("about_text"):
         parts.append(f"About: {signals['about_text']}")
     elif signals.get("body_text"):
         parts.append(f"Content: {signals['body_text']}")
+
     if signals.get("rss_categories"):
         parts.append(f"Content categories: {', '.join(signals['rss_categories'])}")
+
     return "\n".join(parts)[:_MAX_TOTAL]
 
 
