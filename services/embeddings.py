@@ -5,9 +5,8 @@ Key design: NEVER call the embedding API one item at a time.
 The batch_embed task accumulates 100+ items in Redis, then issues a single
 API request here.
 
-build_embedding_text now includes format_type and language from PRNEW CSV
-to improve semantic matching (e.g. distinguishing Press Release from Article,
-or Ukrainian-only from bilingual outlets).
+build_embedding_text now includes format_type, language, audience interests,
+and geographic coverage to improve semantic matching quality.
 """
 
 import hashlib
@@ -54,6 +53,23 @@ def build_embedding_text(item: dict) -> str:
         tag_list = list(raw) if isinstance(raw, (list, tuple)) else []
         if tag_list:
             parts.append(f"Tags: {', '.join(tag_list)}")
+
+    # Audience interests — critical for matching queries like "targeting AI engineers"
+    audience = item.get("audience") or {}
+    interests = audience.get("interests")
+    if isinstance(interests, list) and interests:
+        parts.append(f"Audience interests: {', '.join(str(i) for i in interests)}")
+
+    # Geographic coverage — critical for city/region matching
+    metrics = item.get("metrics") or {}
+    geo_coverage = metrics.get("geographic_coverage")
+    if isinstance(geo_coverage, list) and geo_coverage:
+        parts.append(f"Geographic coverage: {', '.join(str(g) for g in geo_coverage)}")
+
+    # Content topics — specific editorial focus areas (populated after re-enrichment)
+    content_topics = metrics.get("content_topics")
+    if isinstance(content_topics, list) and content_topics:
+        parts.append(f"Content topics: {', '.join(str(t) for t in content_topics)}")
 
     # Intentionally omit cost_usd, DR, DA — those are filterable numbers,
     # not semantic signals. Embedding captures WHAT the outlet is, not how much.

@@ -28,21 +28,21 @@ logger = logging.getLogger(__name__)
 # ─── Schema contract ──────────────────────────────────────────────────────────
 
 _SYSTEM_PROMPT = """\
-You are a senior media analyst specialising in Ukrainian and Eastern European media.
+You are a senior media analyst with global expertise across all markets and regions.
 
 Given information about a news/media outlet, return ONLY valid JSON — no markdown,
 no commentary, no code fences — that conforms EXACTLY to this schema:
 
 {
   "description":  "<3-4 sentences in English. State: what the outlet covers, who founded/runs it if known, its geographic focus, and its editorial angle>",
-  "category":     "<exactly one of: News|Business|Technology|Sports|Fashion|Agriculture|Video|Entertainment|Science|Politics>",
+  "category":     "<exactly one of: News|Business|Technology|Sports|Fashion|Agriculture|Video|Entertainment|Science|Health|Politics>",
   "tags":         ["<6-8 precise English keyword tags: topic beats, geography, format>"],
   "audience": {
     "age_range":  "<realistic age range, e.g. 18-35 or 30-55>",
     "interests":  ["<3-5 specific audience interests>"],
     "demographics": {
       "primary_language": "<ISO-639-1, e.g. uk / en / ru>",
-      "geo":              "<specific city, region or country — NOT just 'Ukraine' if regional>",
+      "geo":              "<specific city, region or country — be as specific as the context allows>",
       "gender_split":     "<realistic estimate, e.g. 60M/40F>"
     }
   },
@@ -65,7 +65,7 @@ Rules:
 
 _VALID_CATEGORIES = {
     "News", "Business", "Technology", "Sports", "Fashion",
-    "Agriculture", "Video", "Entertainment", "Science", "Politics",
+    "Agriculture", "Video", "Entertainment", "Science", "Health", "Politics",
 }
 _VALID_FREQUENCIES = {"daily", "weekly", "monthly", "breaking_news"}
 _VALID_SOCIAL = {"strong", "moderate", "weak", "none"}
@@ -98,7 +98,7 @@ def _validate(data: dict, title: str) -> dict:
     data.setdefault("audience", {
         "age_range": "25-44",
         "interests": [],
-        "demographics": {"primary_language": "uk", "geo": "Ukraine", "gender_split": "50M/50F"},
+        "demographics": {"primary_language": "unknown", "geo": "unknown", "gender_split": "50M/50F"},
     })
     return data
 
@@ -123,13 +123,13 @@ def _mock(title: str) -> dict:
             "age_range": "25-44",
             "interests": ["news", "current events", "society"],
             "demographics": {
-                "primary_language": "uk",
-                "geo": "Ukraine",
+                "primary_language": "en",
+                "geo": "unknown",
                 "gender_split": "50M/50F",
             },
         },
         "metrics": {
-            "geographic_coverage": ["Ukraine"],
+            "geographic_coverage": [],
             "publishing_frequency": "daily",
             "ad_formats_available": ["Banner", "Native", "Sponsored Post"],
             "social_media_presence": "moderate",
@@ -165,7 +165,7 @@ async def _call_openai(context_text: str) -> dict:
                 {"role": "user",   "content": context_text},
             ],
             temperature=0.15,
-            max_tokens=700,
+            max_tokens=900,
         )
         return json.loads(resp.choices[0].message.content)
     except RateLimitError as e:

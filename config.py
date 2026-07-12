@@ -14,7 +14,7 @@ class Settings(BaseSettings):
 
     # ── OpenAI ────────────────────────────────────────────────────────────────
     openai_api_key: str = ""
-    openai_chat_model: str = "gpt-4o-mini"
+    openai_chat_model: str = "gpt-4o"
     openai_embedding_model: str = "text-embedding-3-small"
 
     # ── Pipeline behaviour ────────────────────────────────────────────────────

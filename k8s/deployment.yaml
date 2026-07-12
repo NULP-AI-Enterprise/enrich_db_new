@@ -98,6 +98,8 @@ spec:
               value: "redis://advert-redis.advert-back.svc.cluster.local:6379/0"
             - name: CELERY_RESULT_BACKEND
               value: "redis://advert-redis.advert-back.svc.cluster.local:6379/1"
+            - name: OPENAI_CHAT_MODEL
+              value: "gpt-4o"
           resources:
             requests:
               cpu: 200m

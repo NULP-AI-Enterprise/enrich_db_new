@@ -9,11 +9,11 @@ Retry policy:
   - acks_late + reject_on_worker_lost: safe re-queue if worker dies
 """
 
-import asyncio
 import logging
 
 from celery import Task
 
+from async_utils import run_in_worker
 from celery_app import celery_app
 from config import settings
 from db import update_media_item
@@ -31,41 +31,6 @@ EMBED_QUEUE_KEY = "embedding:pending"
 
 def _redis():
     return _redis_sync.from_url(settings.redis_url, decode_responses=True)
-
-
-# ─── Event loop helper ────────────────────────────────────────────────────────
-
-def _run_async(coro):
-    """
-    Run an async coroutine in a Celery fork worker.
-
-    asyncio.run() closes the event loop after the coroutine completes, but
-    httpx (and anyio) create background cleanup tasks that try to finalise
-    on the now-closed loop, producing `RuntimeError('Event loop is closed')`.
-
-    This helper cancels all pending tasks before closing the loop so those
-    finalisation tasks are given a chance to exit cleanly.
-    """
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        return loop.run_until_complete(coro)
-    finally:
-        try:
-            # Cancel every lingering task (httpx connection-pool teardown etc.)
-            pending = asyncio.all_tasks(loop)
-            if pending:
-                for task in pending:
-                    task.cancel()
-                loop.run_until_complete(
-                    asyncio.gather(*pending, return_exceptions=True)
-                )
-            loop.run_until_complete(loop.shutdown_asyncgens())
-        except Exception:
-            pass
-        finally:
-            asyncio.set_event_loop(None)
-            loop.close()
 
 
 # ─── Main task ────────────────────────────────────────────────────────────────
@@ -89,7 +54,7 @@ def enrich_item(self: Task, item_id: str, title: str) -> dict:
     title   : outlet name (the only field we start with)
     """
     try:
-        return _run_async(_pipeline(item_id, title))
+        return run_in_worker(_pipeline(item_id, title))
     except Exception as exc:
         countdown = 10 * (2 ** self.request.retries)
         logger.warning(

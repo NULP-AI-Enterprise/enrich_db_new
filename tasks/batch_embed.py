@@ -13,9 +13,9 @@ The embedding column is @Transient in Hibernate, so we MUST use a native SQL
 update — never rely on JPA/Hibernate to write this field.
 """
 
-import asyncio
 import logging
 
+from async_utils import run_in_worker
 from celery_app import celery_app
 from config import settings
 from db import fetch_items_for_embedding, update_embedding
@@ -59,7 +59,7 @@ def process_embedding_batch() -> dict:
         return {"status": "skipped", "reason": "lock_held"}
 
     try:
-        return asyncio.run(_batch_async(r))
+        return run_in_worker(_batch_async(r))
     except Exception as exc:
         logger.error("Embedding batch failed: %s", exc, exc_info=True)
         return {"status": "error", "message": str(exc)}
