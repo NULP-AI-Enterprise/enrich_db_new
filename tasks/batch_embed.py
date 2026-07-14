@@ -97,7 +97,13 @@ async def _batch_async(r: "_redis_sync.Redis") -> dict:  # type: ignore[name-def
         return {"status": "no_items", "processed": 0}
 
     # Single API call for the entire batch
-    pairs = await create_embeddings_batch(items)
+    try:
+        pairs = await create_embeddings_batch(items)
+    except Exception as exc:
+        logger.error("Embedding API call failed — re-queuing %d items: %s", len(items), exc)
+        fetched_ids = [item["id"] for item in items]
+        r.lpush(EMBED_QUEUE_KEY, *fetched_ids)  # push to front to preserve priority
+        return {"status": "api_error", "message": str(exc), "requeued": len(fetched_ids)}
 
     # Persist each vector via native SQL (Hibernate @Transient constraint)
     success, failed = 0, 0

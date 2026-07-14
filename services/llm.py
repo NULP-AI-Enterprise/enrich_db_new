@@ -174,6 +174,8 @@ async def _call_openai(context_text: str) -> dict:
         if e.status_code >= 500:
             raise _RateLimitError(str(e)) from e
         raise
+    finally:
+        await client.aclose()
 
 
 # ─── Public API ───────────────────────────────────────────────────────────────
@@ -184,9 +186,5 @@ async def structure_media_item(title: str, context_text: str) -> dict:
         return _validate(_mock(title), title)
 
     await asyncio.sleep(settings.llm_rate_limit_delay)
-    try:
-        result = await _call_openai(context_text)
-        return _validate(result, title)
-    except Exception as exc:
-        logger.error("LLM failed for '%s' (%s) — using mock fallback", title, exc)
-        return _validate(_mock(title), title)
+    result = await _call_openai(context_text)
+    return _validate(result, title)
